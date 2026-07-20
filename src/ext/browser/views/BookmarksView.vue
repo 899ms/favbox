@@ -256,6 +256,7 @@ const sync = async () => {
     loading.value = true;
     bookmarksTotal.value = await bookmarkStorage.total();
     bookmarksList.value = await bookmarkStorage.search(bookmarksQuery.value, 0, PAGINATION_LIMIT, bookmarksSort.value);
+    scrollRef.value?.scrollUp();
     attributesList.value = await attributeStorage.search(
       attributesIncludes,
       ...attributesSort.value.split(':'),
@@ -381,6 +382,7 @@ browser.runtime.onMessage.addListener(async (message) => {
     folderTree.value = folders;
     bookmarksTotal.value = total;
     bookmarksList.value = bookmarks;
+    scrollRef.value?.scrollUp();
   }
 });
 
