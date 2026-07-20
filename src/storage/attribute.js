@@ -1,5 +1,6 @@
 import hashCode from '@/services/hash';
 import useConnection from './idb/connection';
+import escapeRegExp from './regex';
 
 export default class AttributeStorage {
   async search(includes, sortColumn = 'count', sortDirection = 'desc', term = '', skip = 0, limit = 200) {
@@ -16,7 +17,7 @@ export default class AttributeStorage {
       return [];
     }
     Object.assign(whereConditions, { key: { in: keys } });
-    Object.assign(whereConditions, term ? { value: { like: `%${term}%` } } : {});
+    Object.assign(whereConditions, term ? { value: { regex: new RegExp(escapeRegExp(term), 'i') } } : {});
 
     return connection.select({
       from: 'attributes',
@@ -36,7 +37,7 @@ export default class AttributeStorage {
     const whereConditions = [{ key }];
     if (value) {
       whereConditions.push({
-        value: { like: `%${value}%` },
+        value: { regex: new RegExp(escapeRegExp(value), 'i') },
       });
     }
     return connection.select({

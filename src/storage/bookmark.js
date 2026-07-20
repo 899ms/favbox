@@ -1,4 +1,5 @@
 import useConnection from './idb/connection';
+import escapeRegExp from './regex';
 
 export default class BookmarkStorage {
   async createMany(data) {
@@ -47,7 +48,7 @@ export default class BookmarkStorage {
     });
     if (queryParams?.term) {
       const [term] = queryParams.term;
-      const regexPattern = term.split(/\s+/).map((word) => `(?=.*${word})`).join('');
+      const regexPattern = term.split(/\s+/).map((word) => `(?=.*${escapeRegExp(word)})`).join('');
       const regex = new RegExp(`^${regexPattern}.*$`, 'i');
       whereConditions.push({
         title: { regex },
@@ -56,7 +57,7 @@ export default class BookmarkStorage {
           or: {
             url: { regex },
             or: {
-              domain: { like: `%${term}%` },
+              domain: { regex },
               or: {
                 keywords: { regex },
               },
@@ -127,7 +128,7 @@ export default class BookmarkStorage {
     const connection = await useConnection();
     const whereConditions = [{ pinned: 1 }];
     if (term) {
-      const regexPattern = term.split(/\s+/).map((word) => `(?=.*${word})`).join('');
+      const regexPattern = term.split(/\s+/).map((word) => `(?=.*${escapeRegExp(word)})`).join('');
       const regex = new RegExp(`^${regexPattern}.*$`, 'i');
       whereConditions.push({
         notes: { regex },
@@ -136,7 +137,7 @@ export default class BookmarkStorage {
           or: {
             description: { regex },
             or: {
-              domain: { like: `%${term}%` },
+              domain: { regex },
             },
           },
         },
