@@ -61,7 +61,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref } from 'vue';
 import AppBadge from '@/components/app/AppBadge.vue';
 import CommandPalette from '@/ext/browser/components/CommandPalette.vue';
 
@@ -109,7 +109,7 @@ const add = () => {
   term.value = '';
 };
 
-const iconMap = computed(() => ({
+const iconMap = {
   folder: PhFolderSimpleLight,
   keyword: PhListMagnifyingGlassLight,
   tag: PhHashStraightLight,
@@ -117,9 +117,9 @@ const iconMap = computed(() => ({
   id: MdiIdentifier,
   dateAdded: PhCalendarBlank,
   default: PhMagnifyingGlassLight,
-}));
+};
 
-const getIcon = (key) => iconMap.value[key] || iconMap.value.default;
+const getIcon = (key) => iconMap[key] || iconMap.default;
 function getColor(key) {
   switch (key) {
     case 'dateAdded':

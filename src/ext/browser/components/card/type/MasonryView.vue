@@ -111,7 +111,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import AppBadge from '@/components/app/AppBadge.vue';
 import AppSpinner from '@/components/app/AppSpinner.vue';
 import BookmarkFavicon from '@/ext/browser/components/BookmarkFavicon.vue';
@@ -155,9 +155,9 @@ const gradientClasses = [
   'gradient-pink-rose',
 ];
 
-const randomGradient = computed(() => gradientClasses[Math.floor(Math.random() * gradientClasses.length)]);
+const randomGradient = gradientClasses[Math.floor(Math.random() * gradientClasses.length)];
 
-const glowClass = computed(() => `glow-${randomGradient.value.replace('gradient-', '')}`);
+const glowClass = `glow-${randomGradient.replace('gradient-', '')}`;
 </script>
 
 <style scoped>

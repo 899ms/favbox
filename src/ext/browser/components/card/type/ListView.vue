@@ -46,19 +46,14 @@
   </div>
 </template>
 <script setup>
-import { computed } from 'vue';
 import AppBadge from '@/components/app/AppBadge.vue';
 import BookmarkFavicon from '@/ext/browser/components/BookmarkFavicon.vue';
 import PhCalendarBlank from '~icons/ph/calendar-blank';
 
-const props = defineProps({
+defineProps({
   bookmark: {
     type: Object,
     required: true,
   },
-});
-
-const bookmark = computed({
-  get: () => props.bookmark,
 });
 </script>

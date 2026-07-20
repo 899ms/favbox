@@ -136,7 +136,7 @@
         class="w-full"
       >
         <li
-          v-for="(item, key) in list"
+          v-for="(item, key) in items"
           :key="item.id + key"
           role="option"
           :aria-selected="selected(item.key, item.value)"
@@ -183,7 +183,7 @@ import {
   Switch,
 } from '@headlessui/vue';
 import {
-  computed, defineModel, onMounted, ref, onBeforeUnmount, watch,
+  defineModel, onMounted, ref, onBeforeUnmount, watch,
 } from 'vue';
 import AppRadio from '@/components/app/AppRadio.vue';
 import AppBullet from '@/components/app/AppBullet.vue';
@@ -233,8 +233,6 @@ const getIcon = (item) => iconMap[item.key];
 const getTooltip = (item) => tooltipMap[item.key];
 
 const selected = (key, value) => props.modelValue.some((item) => item.key === key && item.value === value);
-
-const list = computed(() => props.items);
 
 const paginate = (skip) => {
   emit('paginate', skip);
