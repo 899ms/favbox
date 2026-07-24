@@ -215,6 +215,7 @@ browser.bookmarks.onRemoved.addListener(async (id, removeInfo) => {
     await bookmarkStorage.removeById(id);
     await attributeStorage.remove(bookmark);
     console.log('🗑️ Bookmark has been removed..', id, removeInfo);
+    refreshUserInterface();
   } catch (e) {
     console.error('🗑️', e);
   }

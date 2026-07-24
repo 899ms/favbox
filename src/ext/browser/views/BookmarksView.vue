@@ -55,7 +55,6 @@
     <AppInfiniteScroll
       ref="scroll"
       class="flex h-screen w-full flex-col overflow-y-auto"
-      :limit="PAGINATION_LIMIT"
       @scroll:end="loadMore"
     >
       <div class="sticky top-0 z-10 flex w-full flex-row flex-wrap items-center gap-2 bg-white/70 pb-3 pt-2 px-2 backdrop-blur-sm sm:gap-x-3 dark:bg-black/70">
@@ -122,7 +121,7 @@
         />
       </template>
     </AppDrawer>
-    <BookmarksSync @on-sync="sync" />
+    <BookmarksSync @on-sync="refresh" />
     <AppConfirmation
       key="delete"
       ref="deleteConfirmation"
@@ -164,7 +163,7 @@
 
 <script setup>
 import {
-  reactive, ref, onMounted, computed, useTemplateRef, watch,
+  reactive, ref, onMounted, onUnmounted, computed, useTemplateRef, watch,
 } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { notify } from 'notiwind';
@@ -231,7 +230,7 @@ const bookmarksTotalPlaceholder = computed(() => (bookmarksQuery.value.length ? 
 const load = async () => {
   try {
     loading.value = true;
-    bookmarksList.value = await bookmarkStorage.search(bookmarksQuery.value, 0, PAGINATION_LIMIT, bookmarksSort.value);
+    bookmarksList.value = await bookmarkStorage.searchAfter(bookmarksQuery.value, null, PAGINATION_LIMIT, bookmarksSort.value);
   } catch (e) {
     console.error(e);
     notify({ group: 'error', text: 'Error loading bookmarks.' }, NOTIFICATION_DURATION);
@@ -240,35 +239,37 @@ const load = async () => {
   }
 };
 
-const loadMore = async (offset) => {
+let loadingMore = false;
+const loadMore = async () => {
+  if (loadingMore) return;
+  loadingMore = true;
   try {
-    const more = await bookmarkStorage.search(bookmarksQuery.value, offset, PAGINATION_LIMIT, bookmarksSort.value);
+    const cursor = bookmarksList.value.at(-1) ?? null;
+    const more = await bookmarkStorage.searchAfter(bookmarksQuery.value, cursor, PAGINATION_LIMIT, bookmarksSort.value);
     bookmarksList.value.push(...more);
   } catch (e) {
     console.error(e);
     notify({ group: 'error', text: 'Error loading bookmarks.' }, NOTIFICATION_DURATION);
+  } finally {
+    loadingMore = false;
   }
 };
 
-const sync = async () => {
+const refresh = async () => {
   try {
-    bookmarksList.value = [];
-    loading.value = true;
-    bookmarksTotal.value = await bookmarkStorage.total();
-    bookmarksList.value = await bookmarkStorage.search(bookmarksQuery.value, 0, PAGINATION_LIMIT, bookmarksSort.value);
-    scrollRef.value?.scrollUp();
-    attributesList.value = await attributeStorage.search(
-      attributesIncludes,
-      ...attributesSort.value.split(':'),
-      attributesTerm.value,
-      0,
-      PAGINATION_LIMIT,
-    );
+    const [attrs, folders, total, bookmarks] = await Promise.all([
+      attributeStorage.search(attributesIncludes, ...attributesSort.value.split(':'), attributesTerm.value, 0, PAGINATION_LIMIT),
+      getFolderTree(),
+      bookmarkStorage.total(),
+      bookmarkStorage.searchAfter(bookmarksQuery.value, null, Math.max(PAGINATION_LIMIT, bookmarksList.value.length), bookmarksSort.value),
+    ]);
+    attributesList.value = attrs;
+    folderTree.value = folders;
+    bookmarksTotal.value = total;
+    bookmarksList.value = bookmarks;
   } catch (error) {
     console.error('Error refreshing bookmarks:', error);
     notify({ group: 'error', text: 'Failed to refresh bookmarks.' }, NOTIFICATION_DURATION);
-  } finally {
-    loading.value = false;
   }
 };
 
@@ -298,25 +299,25 @@ const handleRemove = async (bookmark) => {
   if (await deleteConfirmationRef.value.request() === false) {
     return;
   }
+  let removed = false;
   try {
     const id = bookmark.id.toString();
     await browser.bookmarks.remove(id);
     bookmarksList.value = bookmarksList.value.filter((item) => item.id.toString() !== id);
+    removed = true;
     notify({ group: 'default', text: 'Bookmark successfully removed!' }, NOTIFICATION_DURATION);
     console.log(`Bookmark ${id} successfully removed`);
-    const [sortColumn, sortDirection] = attributesSort.value.split(':');
-    attributesList.value = await attributeStorage.search(attributesIncludes, sortColumn, sortDirection, attributesTerm.value, 0, PAGINATION_LIMIT);
   } catch (error) {
     console.error('Error removing bookmark:', error);
     notify({ group: 'error', text: 'Failed to remove bookmark. Please try again.' }, NOTIFICATION_DURATION);
   }
 
-  // Silently load more bookmarks if needed, without showing spinner
+  if (!removed) return;
+
   try {
-    if (bookmarksList.value.length < PAGINATION_LIMIT) {
-      const more = await bookmarkStorage.search(bookmarksQuery.value, bookmarksList.value.length, 1, bookmarksSort.value);
-      if (more.length) bookmarksList.value.push(...more);
-    }
+    const cursor = bookmarksList.value.at(-1) ?? null;
+    const [next] = await bookmarkStorage.searchAfter(bookmarksQuery.value, cursor, 1, bookmarksSort.value);
+    if (next && next.id !== bookmark.id) bookmarksList.value.push(next);
   } catch (e) {
     console.error('Error loading additional bookmarks after removal:', e);
   }
@@ -369,22 +370,11 @@ const handleSubmit = async (data) => {
   }
 };
 
-browser.runtime.onMessage.addListener(async (message) => {
+const handleRuntimeMessage = (message) => {
   if (message.action === 'refresh') {
-    console.log('Refreshing bookmarks view...');
-    const [attrs, folders, total, bookmarks] = await Promise.all([
-      attributeStorage.search(attributesIncludes, ...attributesSort.value.split(':'), attributesTerm.value, 0, PAGINATION_LIMIT),
-      getFolderTree(),
-      bookmarkStorage.total(),
-      bookmarkStorage.search(bookmarksQuery.value, 0, PAGINATION_LIMIT, bookmarksSort.value),
-    ]);
-    attributesList.value = attrs;
-    folderTree.value = folders;
-    bookmarksTotal.value = total;
-    bookmarksList.value = bookmarks;
-    scrollRef.value?.scrollUp();
+    refresh();
   }
-});
+};
 
 watch(
   [bookmarksQuery, bookmarksSort],
@@ -420,6 +410,7 @@ watch(
 );
 
 onMounted(async () => {
+  browser.runtime.onMessage.addListener(handleRuntimeMessage);
   try {
     loading.value = true;
     const [sortColumn, sortDirection] = attributesSort.value.split(':');
@@ -439,5 +430,9 @@ onMounted(async () => {
   } finally {
     loading.value = false;
   }
+});
+
+onUnmounted(() => {
+  browser.runtime.onMessage.removeListener(handleRuntimeMessage);
 });
 </script>

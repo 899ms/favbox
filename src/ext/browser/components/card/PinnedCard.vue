@@ -37,7 +37,7 @@
           :class="[
             bookmark.pinned === 0 ? 'bg-black' : 'bg-purple-500 '
           ]"
-          @click="$emit('pin', bookmark)"
+          @click.stop="$emit('pin', bookmark)"
         >
           <CarbonPin class="size-4" />
         </button>
@@ -45,7 +45,7 @@
           v-tooltip.bottom-start="{ content: 'Open'}"
           aria-label="Open bookmark"
           class="-translate-y-8 rounded-md bg-black p-1.5 text-white opacity-100 shadow-md transition-transform delay-100 duration-500 ease-out group-hover:translate-y-2 group-hover:opacity-100"
-          @click="$emit('open', bookmark)"
+          @click.stop="$emit('open', bookmark)"
         >
           <CarbonNewTab class="size-4" />
         </button>

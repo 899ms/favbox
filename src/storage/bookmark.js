@@ -1,5 +1,108 @@
 import useConnection from './idb/connection';
+import pageBookmarksByDate from './idb/pager';
 import escapeRegExp from './regex';
+
+const buildTermRegex = (term) => {
+  const regexPattern = term.split(/\s+/).map((word) => `(?=.*${escapeRegExp(word)})`).join('');
+  return new RegExp(`^${regexPattern}.*$`, 'i');
+};
+
+const buildBookmarkMatcher = (query) => {
+  const queryParams = {};
+  query.forEach(({ key, value }) => {
+    (queryParams[key] ??= []).push(value);
+  });
+
+  const checks = [];
+  if (queryParams.folder) {
+    const folders = new Set(queryParams.folder);
+    checks.push((row) => folders.has(row.folderId));
+  }
+  if (queryParams.tag) {
+    const tags = new Set(queryParams.tag);
+    checks.push((row) => (row.tags ?? []).some((tag) => tags.has(tag)));
+  }
+  if (queryParams.domain) {
+    const domains = new Set(queryParams.domain);
+    checks.push((row) => domains.has(row.domain));
+  }
+  if (queryParams.keyword) {
+    const keywords = new Set(queryParams.keyword);
+    checks.push((row) => (row.keywords ?? []).some((keyword) => keywords.has(keyword)));
+  }
+  if (queryParams.id) {
+    const ids = new Set(queryParams.id);
+    checks.push((row) => ids.has(row.id));
+  }
+  if (queryParams.term) {
+    const regex = buildTermRegex(queryParams.term[0]);
+    checks.push((row) => regex.test(row.title)
+      || regex.test(row.description ?? '')
+      || regex.test(row.url)
+      || regex.test(row.domain)
+      || (row.keywords ?? []).some((keyword) => regex.test(keyword)));
+  }
+  if (queryParams.dateAdded?.[0]) {
+    const [startStr, endStr] = queryParams.dateAdded[0].split('~');
+    const low = new Date(startStr).setHours(0, 0, 0, 0);
+    const high = new Date(endStr).setHours(23, 59, 59, 999);
+    checks.push((row) => row.dateAdded >= low && row.dateAdded <= high);
+  }
+  if (checks.length === 0) return null;
+  return (row) => checks.every((check) => check(row));
+};
+
+const buildPinnedWhere = (term) => {
+  const whereConditions = [{ pinned: 1 }];
+  if (term) {
+    const regex = buildTermRegex(term);
+    whereConditions.push({
+      notes: { regex },
+      or: {
+        title: { regex },
+        or: {
+          description: { regex },
+          or: {
+            domain: { regex },
+          },
+        },
+      },
+    });
+  }
+  return whereConditions;
+};
+
+const fetchSortedDuplicateGroups = async (connection) => {
+  const groupedResults = await connection.select({
+    from: 'bookmarks',
+    groupBy: 'url',
+    aggregate: { count: ['id'] },
+  });
+  const duplicateGroups = groupedResults.filter((group) => group['count(id)'] > 1);
+  duplicateGroups.sort((a, b) => String(a.url).localeCompare(String(b.url)));
+  return duplicateGroups;
+};
+
+const hydrateDuplicateGroups = async (connection, groups) => {
+  if (groups.length === 0) return [];
+  const urls = groups.map((group) => group.url);
+  const allBookmarks = await connection.select({
+    from: 'bookmarks',
+    where: { url: { in: urls } },
+    order: { by: 'dateAdded', type: 'desc' },
+  });
+  const bookmarksByUrl = Object.groupBy(allBookmarks, (b) => b.url);
+  return groups.map((group) => {
+    const bookmarks = bookmarksByUrl[group.url] || [];
+    return {
+      url: group.url,
+      bookmarks,
+      count: group['count(id)'],
+      firstAdded: bookmarks[bookmarks.length - 1],
+      lastAdded: bookmarks[0],
+    };
+  });
+};
 
 export default class BookmarkStorage {
   async createMany(data) {
@@ -25,65 +128,13 @@ export default class BookmarkStorage {
     return connection.select(query);
   }
 
-  async search(query, skip = 0, limit = 50, sortDirection = 'desc') {
-    const connection = await useConnection();
-    const queryParams = {};
-    const whereConditions = [];
-    query.forEach(({ key, value }) => {
-      (queryParams[key] ??= []).push(value);
-    });
-
-    const conditions = [
-      { key: 'folder', condition: { folderId: { in: queryParams.folder } } },
-      { key: 'tag', condition: { tags: { in: queryParams.tag } } },
-      { key: 'domain', condition: { domain: { in: queryParams.domain } } },
-      { key: 'keyword', condition: { keywords: { in: queryParams.keyword } } },
-      { key: 'id', condition: { id: { in: queryParams.id } } },
-    ];
-
-    conditions.forEach(({ key, condition }) => {
-      if (queryParams[key]) {
-        whereConditions.push(condition);
-      }
-    });
-    if (queryParams?.term) {
-      const [term] = queryParams.term;
-      const regexPattern = term.split(/\s+/).map((word) => `(?=.*${escapeRegExp(word)})`).join('');
-      const regex = new RegExp(`^${regexPattern}.*$`, 'i');
-      whereConditions.push({
-        title: { regex },
-        or: {
-          description: { regex },
-          or: {
-            url: { regex },
-            or: {
-              domain: { regex },
-              or: {
-                keywords: { regex },
-              },
-            },
-          },
-        },
-      });
-    }
-    if (queryParams?.dateAdded?.[0]) {
-      const [startStr, endStr] = queryParams.dateAdded[0].split('~');
-      const low = new Date(startStr).setHours(0, 0, 0, 0);
-      const high = new Date(endStr).setHours(23, 59, 59, 999);
-      whereConditions.push({
-        dateAdded: { '-': { low, high } },
-      });
-    }
-    return connection.select({
-      from: 'bookmarks',
-      distinct: true,
+  async searchAfter(query, cursor, limit = 50, sortDirection = 'desc') {
+    await useConnection();
+    return pageBookmarksByDate({
+      cursor,
       limit,
-      skip,
-      order: {
-        by: 'dateAdded',
-        type: sortDirection,
-      },
-      where: whereConditions.length === 0 ? null : whereConditions,
+      sortDirection,
+      match: buildBookmarkMatcher(query),
     });
   }
 
@@ -126,32 +177,12 @@ export default class BookmarkStorage {
 
   async findPinned(skip = 0, limit = 50, term = '') {
     const connection = await useConnection();
-    const whereConditions = [{ pinned: 1 }];
-    if (term) {
-      const regexPattern = term.split(/\s+/).map((word) => `(?=.*${escapeRegExp(word)})`).join('');
-      const regex = new RegExp(`^${regexPattern}.*$`, 'i');
-      whereConditions.push({
-        notes: { regex },
-        or: {
-          title: { regex },
-          or: {
-            description: { regex },
-            or: {
-              domain: { regex },
-            },
-          },
-        },
-      });
-    }
     return connection.select({
       from: 'bookmarks',
+      where: buildPinnedWhere(term),
+      order: { by: 'updatedAt', type: 'desc' },
       limit,
       skip,
-      order: {
-        by: 'updatedAt',
-        type: 'desc',
-      },
-      where: whereConditions,
     });
   }
 
@@ -327,17 +358,10 @@ export default class BookmarkStorage {
     const connection = await useConnection();
     return connection.select({
       from: 'bookmarks',
+      where: { httpStatus: { in: statuses } },
+      order: { by: 'id', type: 'desc' },
       limit,
       skip,
-      order: {
-        by: 'id',
-        type: 'desc',
-      },
-      where: {
-        httpStatus: {
-          in: statuses,
-        },
-      },
     });
   }
 
@@ -364,53 +388,11 @@ export default class BookmarkStorage {
 
   async getDuplicatesGrouped(skip = 0, limit = 50) {
     const connection = await useConnection();
-
-    // Get all URLs with the number of duplicates
-    const groupedResults = await connection.select({
-      from: 'bookmarks',
-      groupBy: 'url',
-      aggregate: {
-        count: ['id'],
-      },
-    });
-
-    // Filter only groups with duplicates (2+ bookmarks)
-    const duplicateGroups = groupedResults.filter((group) => group['count(id)'] > 1);
-
-    // Sort by url (alphabetically)
-    duplicateGroups.sort((a, b) => String(a.url).localeCompare(String(b.url)));
-
-    // Apply pagination
+    const duplicateGroups = await fetchSortedDuplicateGroups(connection);
     const paginatedGroups = duplicateGroups.slice(skip, skip + limit);
-
-    // Get all bookmarks for the current page in one query
-    const urls = paginatedGroups.map((group) => group.url);
-    const allBookmarks = await connection.select({
-      from: 'bookmarks',
-      where: { url: { in: urls } },
-      order: {
-        by: 'dateAdded',
-        type: 'desc',
-      },
-    });
-
-    // Group bookmarks by URL
-    const bookmarksByUrl = Object.groupBy(allBookmarks, (b) => b.url);
-
-    // Form the result
-    const groupsWithDetails = paginatedGroups.map((group) => {
-      const bookmarks = bookmarksByUrl[group.url] || [];
-      return {
-        url: group.url,
-        bookmarks,
-        count: group['count(id)'],
-        firstAdded: bookmarks[bookmarks.length - 1], // Oldest
-        lastAdded: bookmarks[0], // Newest
-      };
-    });
-
+    const groups = await hydrateDuplicateGroups(connection, paginatedGroups);
     return {
-      groups: groupsWithDetails,
+      groups,
       total: duplicateGroups.length,
       hasMore: skip + limit < duplicateGroups.length,
     };

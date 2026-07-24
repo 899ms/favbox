@@ -1,8 +1,7 @@
 <template>
   <AppInfiniteScroll
     class="flex h-screen w-full flex-col overflow-y-auto bg-white dark:bg-black"
-    :limit="PAGINATION_LIMIT"
-    @scroll:end="loadMore"
+    @scroll:end="() => loadMore(bookmarks.length)"
   >
     <div
       class="sticky top-0 z-10 flex w-full flex-col border-solid bg-white/70 p-4 backdrop-blur-sm dark:bg-black/50"
@@ -185,12 +184,17 @@ const load = async () => {
   }
 };
 
-const loadMore = async (offset) => {
+let loadingMore = false;
+const loadMore = async (skip) => {
+  if (loadingMore) return;
+  loadingMore = true;
   try {
-    const more = await bookmarkStorage.findByHttpStatus(httpStatuses, offset, PAGINATION_LIMIT);
+    const more = await bookmarkStorage.findByHttpStatus(httpStatuses, skip, PAGINATION_LIMIT);
     bookmarks.value.push(...more);
   } catch (e) {
     console.error(e);
+  } finally {
+    loadingMore = false;
   }
 };
 
@@ -198,15 +202,20 @@ const onDelete = async (bookmark) => {
   if (await confirmationRef.value.request() === false) {
     return;
   }
+  let removed = false;
   try {
-    await browser.bookmarks.remove(String(bookmark.id));
+    const id = String(bookmark.id);
+    await browser.bookmarks.remove(id);
     bookmarks.value = bookmarks.value.filter((b) => b.id !== bookmark.id);
-    total.value = await bookmarkStorage.getTotalByHttpStatus(httpStatuses);
+    removed = true;
+    total.value -= 1;
     notify({ group: 'default', text: 'Bookmark successfully removed!' }, NOTIFICATION_DURATION);
   } catch (e) {
     console.error(e);
     notify({ group: 'error', text: 'Failed to remove bookmark. Please try again.' }, NOTIFICATION_DURATION);
   }
+
+  if (!removed) return;
 
   try {
     if (bookmarks.value.length < PAGINATION_LIMIT) {
@@ -218,9 +227,16 @@ const onDelete = async (bookmark) => {
   }
 };
 
+let activating = false;
 onMounted(load);
 onActivated(async () => {
-  total.value = 0;
-  total.value = await bookmarkStorage.getTotalByHttpStatus(httpStatuses);
+  if (loading.value || activating) return;
+  activating = true;
+  try {
+    total.value = await bookmarkStorage.getTotalByHttpStatus(httpStatuses);
+    bookmarks.value = await bookmarkStorage.findByHttpStatus(httpStatuses, 0, Math.max(PAGINATION_LIMIT, bookmarks.value.length));
+  } finally {
+    activating = false;
+  }
 });
 </script>

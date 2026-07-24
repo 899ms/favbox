@@ -16,8 +16,7 @@
       <AppInfiniteScroll
         ref="scroll"
         class="h-72 md:h-full overflow-y-auto"
-        :limit="PAGINATION_LIMIT"
-        @scroll:end="loadMoreBookmarks"
+        @scroll:end="() => loadMoreBookmarks(bookmarks.length)"
       >
         <TransitionGroup
           enter-active-class="transition-opacity duration-200 ease-out"
@@ -156,10 +155,13 @@ const loadBookmarks = async () => {
   }
 };
 
-const loadMoreBookmarks = async (offset) => {
+let loadingMore = false;
+const loadMoreBookmarks = async (skip) => {
+  if (loadingMore) return;
+  loadingMore = true;
   try {
     const newBookmarks = await bookmarkStorage.findPinned(
-      offset,
+      skip,
       PAGINATION_LIMIT,
       searchTerm.value,
     );
@@ -170,6 +172,8 @@ const loadMoreBookmarks = async (offset) => {
       { group: 'error', text: 'Error loading data.' },
       NOTIFICATION_DURATION,
     );
+  } finally {
+    loadingMore = false;
   }
 };
 
@@ -185,20 +189,31 @@ const open = (bookmark) => {
 };
 
 const unpin = async (bookmark) => {
+  let unpinned = false;
   try {
     await bookmarkStorage.updatePinStatusById(bookmark.id, 0);
+    unpinned = true;
 
     if (currentBookmarkId.value === bookmark.id) {
       await closeEditor();
     }
 
-    await loadBookmarks();
+    bookmarks.value = bookmarks.value.filter((b) => b.id !== bookmark.id);
   } catch (error) {
     console.error('Error updating pin status:', error);
     notify(
       { group: 'error', text: 'Error updating bookmark.' },
       NOTIFICATION_DURATION,
     );
+  }
+
+  if (!unpinned) return;
+
+  try {
+    const [next] = await bookmarkStorage.findPinned(bookmarks.value.length, 1, searchTerm.value);
+    if (next) bookmarks.value.push(next);
+  } catch (e) {
+    console.error('Error loading additional bookmarks after unpin:', e);
   }
 };
 

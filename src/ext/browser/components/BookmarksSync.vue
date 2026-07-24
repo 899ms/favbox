@@ -88,7 +88,7 @@
 </template>
 <script setup>
 import NumberFlow from '@number-flow/vue';
-import { onMounted, ref, defineEmits } from 'vue';
+import { onMounted, onUnmounted, ref, defineEmits } from 'vue';
 import {
   TransitionRoot,
   TransitionChild,
@@ -109,17 +109,7 @@ const close = () => { isOpen.value = false; };
 const open = () => { isOpen.value = true; };
 const emit = defineEmits(['onSync']);
 
-onMounted(async () => {
-  const storageData = await browser.storage.session.get(['status', 'progress']);
-  status.value = storageData.status ?? false;
-  progress.value = storageData.progress ?? 0;
-
-  isSyncing.value = !status.value && progress.value > 0 && progress.value < 100;
-
-  isOpen.value = isSyncing.value;
-});
-
-browser.runtime.onMessage.addListener(async (message) => {
+const handleRuntimeMessage = (message) => {
   if (message.action === 'sync') {
     const wasSyncing = isSyncing.value;
     progress.value = message.data.progress;
@@ -133,5 +123,20 @@ browser.runtime.onMessage.addListener(async (message) => {
     emit('onSync', message.data);
     console.warn('BookmarksSync', message.data);
   }
+};
+
+onMounted(async () => {
+  browser.runtime.onMessage.addListener(handleRuntimeMessage);
+  const storageData = await browser.storage.session.get(['status', 'progress']);
+  status.value = storageData.status ?? false;
+  progress.value = storageData.progress ?? 0;
+
+  isSyncing.value = !status.value && progress.value > 0 && progress.value < 100;
+
+  isOpen.value = isSyncing.value;
+});
+
+onUnmounted(() => {
+  browser.runtime.onMessage.removeListener(handleRuntimeMessage);
 });
 </script>

@@ -2,7 +2,6 @@
   <div class="h-screen w-full flex flex-col">
     <AppInfiniteScroll
       class="flex flex-col flex-1 overflow-y-auto bg-white dark:bg-black"
-      :limit="PAGINATION_LIMIT"
       @scroll:end="loadMore"
     >
       <div
@@ -106,8 +105,8 @@ const bookmarkStorage = new BookmarkStorage();
 const loading = ref(true);
 const groups = ref([]);
 const total = ref(0);
-const confirmationRef = useTemplateRef('confirmation');
 const deletedGroupsCount = ref(0);
+const confirmationRef = useTemplateRef('confirmation');
 
 const load = async () => {
   try {
@@ -123,12 +122,18 @@ const load = async () => {
   }
 };
 
-const loadMore = async (offset) => {
+let loadingMore = false;
+const loadMore = async () => {
+  if (loadingMore) return;
+  loadingMore = true;
   try {
+    const offset = groups.value.length + deletedGroupsCount.value;
     const result = await bookmarkStorage.getDuplicatesGrouped(offset, PAGINATION_LIMIT);
     groups.value.push(...result.groups);
   } catch (error) {
     console.error('Error loading more duplicates:', error);
+  } finally {
+    loadingMore = false;
   }
 };
 
@@ -170,7 +175,8 @@ const onDelete = async (bookmark) => {
   if (await confirmationRef.value.request() === false) return;
 
   try {
-    await browser.bookmarks.remove(String(bookmark.id));
+    const id = String(bookmark.id);
+    await browser.bookmarks.remove(id);
 
     const location = findBookmarkInGroups(bookmark.id);
     if (!location) return;

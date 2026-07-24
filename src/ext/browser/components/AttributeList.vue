@@ -126,7 +126,6 @@
     </div>
     <AppInfiniteScroll
       ref="scrollRef"
-      :limit="200"
       class="list-view flex h-full scroll-p-0.5 flex-col overflow-y-auto overflow-x-hidden py-1 text-xs"
       @scroll:end="paginate"
     >
@@ -234,8 +233,8 @@ const getTooltip = (item) => tooltipMap[item.key];
 
 const selected = (key, value) => props.modelValue.some((item) => item.key === key && item.value === value);
 
-const paginate = (skip) => {
-  emit('paginate', skip);
+const paginate = () => {
+  emit('paginate', props.items.length);
 };
 
 const getColor = (key) => {

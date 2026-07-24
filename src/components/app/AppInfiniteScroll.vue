@@ -4,16 +4,13 @@
   </div>
 </template>
 <script setup>
-import { onMounted, onBeforeUnmount, ref, useTemplateRef } from 'vue';
+import { onMounted, onBeforeUnmount, useTemplateRef } from 'vue';
 
-const props = defineProps({ limit: { type: Number, default: 50 } });
 const emit = defineEmits(['scroll:end']);
 const scrollRef = useTemplateRef('scroll');
-const skip = ref(0);
 let lastScrollTop = 0;
 
 const scrollUp = () => {
-  skip.value = 0;
   scrollRef.value.scrollTo({
     top: 0,
     behavior: 'smooth',
@@ -41,8 +38,7 @@ const onScroll = () => {
   lastScrollTop = currentScrollTop;
   if (!isScrollingDown) return;
   if (Math.round(el.offsetHeight + currentScrollTop) >= el.scrollHeight * 0.75) {
-    skip.value += parseInt(props.limit, 10);
-    emit('scroll:end', skip.value);
+    emit('scroll:end');
   }
 };
 
@@ -51,5 +47,5 @@ const throttledScroll = throttle(onScroll, 200);
 onMounted(() => scrollRef.value.addEventListener('scroll', throttledScroll));
 onBeforeUnmount(() => { scrollRef.value?.removeEventListener('scroll', throttledScroll); });
 
-defineExpose({ scrollRef, scrollUp, skip: skip.value });
+defineExpose({ scrollRef, scrollUp });
 </script>

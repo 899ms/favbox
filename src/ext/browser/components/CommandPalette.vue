@@ -60,8 +60,8 @@
                   </div>
 
                   <AppInfiniteScroll
+                    ref="scroll"
                     class="list-view w-full flex-1 overflow-y-auto p-1"
-                    :limit="100"
                     @scroll:end="paginate"
                   >
                     <div
@@ -171,6 +171,7 @@ const activeIndex = ref(-1);
 const items = ref([]);
 const itemRef = useTemplateRef('item');
 const inputRef = useTemplateRef('input');
+const scrollListRef = useTemplateRef('scroll');
 const isLoading = ref(false);
 
 const iconMap = {
@@ -179,14 +180,17 @@ const iconMap = {
   keyword: PhListMagnifyingGlassLight,
 };
 
-const paginate = async (skip) => {
+let loadingMore = false;
+const paginate = async () => {
+  if (loadingMore) return;
+  loadingMore = true;
   try {
     const results = await attributeStorage.search(
       { tag: true, domain: true, keyword: true },
       'value',
       'asc',
       searchTerm.value,
-      skip,
+      items.value.length,
       100,
     );
     const resultsWithIcons = results.map((item) => ({
@@ -196,6 +200,8 @@ const paginate = async (skip) => {
     items.value.push(...resultsWithIcons);
   } catch (e) {
     console.error(e);
+  } finally {
+    loadingMore = false;
   }
 };
 
@@ -237,6 +243,7 @@ const performSearch = useDebounceFn(async () => {
       icon: iconMap[item.key],
     }));
     activeIndex.value = 0;
+    scrollListRef.value?.scrollUp();
   } catch (e) {
     console.error('Search error:', e);
     items.value = [];
