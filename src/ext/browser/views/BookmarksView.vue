@@ -273,6 +273,22 @@ const refresh = async () => {
   }
 };
 
+const refreshMeta = async () => {
+  try {
+    const [attrs, folders, total] = await Promise.all([
+      attributeStorage.search(attributesIncludes, ...attributesSort.value.split(':'), attributesTerm.value, 0, PAGINATION_LIMIT),
+      getFolderTree(),
+      bookmarkStorage.total(),
+    ]);
+    attributesList.value = attrs;
+    folderTree.value = folders;
+    bookmarksTotal.value = total;
+  } catch (error) {
+    console.error('Error refreshing bookmarks:', error);
+    notify({ group: 'error', text: 'Failed to refresh bookmarks.' }, NOTIFICATION_DURATION);
+  }
+};
+
 const loadAttributes = useDebounceFn(async ({ skip = 0, limit = PAGINATION_LIMIT, append = false, includes = attributesIncludes, sort = attributesSort.value, term = attributesTerm.value } = {}) => {
   try {
     const [sortColumn, sortDirection] = sort.split(':');
@@ -372,7 +388,7 @@ const handleSubmit = async (data) => {
 
 const handleRuntimeMessage = (message) => {
   if (message.action === 'refresh') {
-    refresh();
+    refreshMeta();
   }
 };
 
