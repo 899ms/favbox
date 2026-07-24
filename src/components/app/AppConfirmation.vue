@@ -57,6 +57,19 @@
                         <slot name="description" />
                       </p>
                     </div>
+                    <label
+                      v-if="showRemember"
+                      for="confirmation-remember"
+                      class="mt-3 flex items-center gap-2 text-xs text-black dark:text-white"
+                    >
+                      <input
+                        id="confirmation-remember"
+                        v-model="remember"
+                        type="checkbox"
+                        class="size-3.5 rounded border-gray-300 text-black focus:ring-0 dark:border-neutral-700 dark:bg-neutral-900"
+                      >
+                      Don't ask me again
+                    </label>
                   </div>
                 </div>
               </div>
@@ -94,13 +107,21 @@ import {
 } from '@headlessui/vue';
 import AppButton from './AppButton.vue';
 
+defineProps({
+  showRemember: { type: Boolean, default: false },
+});
+
 const isOpen = ref(false);
+const remember = ref(false);
 let resolvePromise = null;
 
-const request = () => new Promise((resolve) => {
-  resolvePromise = resolve;
-  isOpen.value = true;
-});
+const request = () => {
+  remember.value = false;
+  return new Promise((resolve) => {
+    resolvePromise = resolve;
+    isOpen.value = true;
+  });
+};
 
 const close = () => {
   isOpen.value = false;
@@ -120,5 +141,5 @@ const cancel = () => {
   close();
 };
 
-defineExpose({ request });
+defineExpose({ request, remember });
 </script>

@@ -71,7 +71,10 @@
         </div>
       </TransitionGroup>
     </AppInfiniteScroll>
-    <AppConfirmation ref="confirmation">
+    <AppConfirmation
+      ref="confirmation"
+      show-remember
+    >
       <template #title>
         Delete bookmark
       </template>
@@ -172,7 +175,13 @@ const loadOneMoreGroup = async () => {
 };
 
 const onDelete = async (bookmark) => {
-  if (await confirmationRef.value.request() === false) return;
+  const { skipBookmarkDeleteConfirmation } = await browser.storage.local.get('skipBookmarkDeleteConfirmation');
+  if (!skipBookmarkDeleteConfirmation) {
+    if (await confirmationRef.value.request() === false) return;
+    if (confirmationRef.value.remember) {
+      await browser.storage.local.set({ skipBookmarkDeleteConfirmation: true });
+    }
+  }
 
   try {
     const id = String(bookmark.id);

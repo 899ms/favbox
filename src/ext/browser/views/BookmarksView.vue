@@ -34,8 +34,8 @@
               <AttributeList
                 v-model="bookmarksQuery"
                 v-model:sort="attributesSort"
-                v-model:includes="attributesIncludes"
                 v-model:term="attributesTerm"
+                :includes="attributesIncludes"
                 :items="attributesList"
                 @paginate="skip => loadAttributes({ skip, append: true })"
               />
@@ -125,6 +125,7 @@
     <AppConfirmation
       key="delete"
       ref="deleteConfirmation"
+      show-remember
     >
       <template #title>
         Delete bookmark
@@ -312,8 +313,14 @@ const loadAttributes = useDebounceFn(async ({ skip = 0, limit = PAGINATION_LIMIT
 }, 100);
 
 const handleRemove = async (bookmark) => {
-  if (await deleteConfirmationRef.value.request() === false) {
-    return;
+  const { skipBookmarkDeleteConfirmation } = await browser.storage.local.get('skipBookmarkDeleteConfirmation');
+  if (!skipBookmarkDeleteConfirmation) {
+    if (await deleteConfirmationRef.value.request() === false) {
+      return;
+    }
+    if (deleteConfirmationRef.value.remember) {
+      await browser.storage.local.set({ skipBookmarkDeleteConfirmation: true });
+    }
   }
   let removed = false;
   try {
