@@ -21,6 +21,9 @@ export default defineConfig({
       ],
     }),
   ],
+  optimizeDeps: {
+    needsInterop: ['@zanmato/vue3-treeselect'],
+  },
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),

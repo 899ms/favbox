@@ -20,7 +20,7 @@ const BASE_REM = {
 
 export const fontSize = useStorage('fontSize', 'md');
 export const skipDeleteConfirmation = useStorage('skipBookmarkDeleteConfirmation', false);
-export const mode = useColorMode({ modes: { light: '' } });
+export const mode = useColorMode({ modes: { light: '' }, emitAuto: true });
 
 watchEffect(() => {
   const scale = SCALE_BY_SIZE[fontSize.value] ?? SCALE_BY_SIZE.md;

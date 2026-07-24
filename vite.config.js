@@ -26,6 +26,7 @@ export default defineConfig({
   ],
   optimizeDeps: {
     include: ['webextension-polyfill', 'unplugin-icons', 'unplugin-auto-import'],
+    needsInterop: ['@zanmato/vue3-treeselect'],
   },
   resolve: {
     alias: {
