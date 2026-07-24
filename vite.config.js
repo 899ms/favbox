@@ -21,7 +21,7 @@ export default defineConfig({
           'webextension-polyfill': [['default', 'browser']],
         },
       ],
-      dts: false,
+      dts: 'auto-imports.d.ts',
     }),
   ],
   optimizeDeps: {
