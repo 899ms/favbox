@@ -5,7 +5,7 @@ import MetadataParser from '@/parser/metadata';
 import { getBookmarksCount, getFoldersMap, getBookmarksIterator } from '@/services/browserBookmarks';
 import hashCode from '@/services/hash';
 
-const MAX_CONCURRENT = 50;
+const MAX_CONCURRENT = 80;
 const BATCH_SIZE = 100;
 const PROGRESS_UPDATE_INTERVAL = 3000;
 
@@ -18,7 +18,7 @@ const sendProgress = (progress, savedCount) => {
 };
 
 const fetchPageMetadata = async (bookmark, foldersMap) => {
-  const response = await fetchUrl(bookmark.url);
+  const response = await fetchUrl(bookmark.url, 8000);
   return (new MetadataParser(bookmark, response, foldersMap)).getFavboxBookmark();
 };
 
