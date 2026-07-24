@@ -102,6 +102,7 @@ import AppBadge from '@/components/app/AppBadge.vue';
 import DuplicateCard from '@/ext/browser/components/card/DuplicateCard.vue';
 import AppConfirmation from '@/components/app/AppConfirmation.vue';
 import NumberFlow from '@number-flow/vue';
+import { skipDeleteConfirmation } from '@/composables/useAppSettings';
 
 const bookmarkStorage = new BookmarkStorage();
 
@@ -175,11 +176,10 @@ const loadOneMoreGroup = async () => {
 };
 
 const onDelete = async (bookmark) => {
-  const { skipBookmarkDeleteConfirmation } = await browser.storage.local.get('skipBookmarkDeleteConfirmation');
-  if (!skipBookmarkDeleteConfirmation) {
+  if (!skipDeleteConfirmation.value) {
     if (await confirmationRef.value.request() === false) return;
     if (confirmationRef.value.remember) {
-      await browser.storage.local.set({ skipBookmarkDeleteConfirmation: true });
+      skipDeleteConfirmation.value = true;
     }
   }
 

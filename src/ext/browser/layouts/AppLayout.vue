@@ -22,6 +22,7 @@ import { onErrorCaptured } from 'vue';
 import { notify } from 'notiwind';
 import AppNotifications from '@/components/app/AppNotifications.vue';
 import ASide from '@/ext/browser/components/ASide.vue';
+import '@/composables/useAppSettings';
 import ClarityBookmarkLine from '~icons/clarity/bookmark-line';
 import ClarityCopyLine from '~icons/clarity/copy-line';
 import PhLinkBreak from '~icons/ph/link-break';

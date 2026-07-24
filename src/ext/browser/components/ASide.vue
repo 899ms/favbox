@@ -32,8 +32,8 @@
       </li>
     </ul>
     <div class="flex flex-col items-center gap-y-5 py-3 mt-auto shrink-0">
-      <ThemeMode
-        v-tooltip.right="{ content: 'Theme' }"
+      <AppSettings
+        v-tooltip.right="{ content: 'Settings' }"
       />
       <a
         v-tooltip.right="{ content: 'GitHub' }"
@@ -52,7 +52,7 @@ import {
 } from 'vue';
 import { useRoute } from 'vue-router';
 
-import ThemeMode from '@/ext/browser/components/ThemeMode.vue';
+import AppSettings from '@/ext/browser/components/AppSettings.vue';
 import RiBookmarkFill from '~icons/ri/bookmark-fill';
 import IconoirGithub from '~icons/iconoir/github';
 

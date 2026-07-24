@@ -100,6 +100,7 @@ import { fetchUrl, fetchHead } from '@/services/httpClient';
 import AppButton from '@/components/app/AppButton.vue';
 import AppProgress from '@/components/app/AppProgress.vue';
 import AppSpinner from '@/components/app/AppSpinner.vue';
+import { skipDeleteConfirmation } from '@/composables/useAppSettings';
 
 const bookmarkStorage = new BookmarkStorage();
 const bookmarks = ref([]);
@@ -202,13 +203,12 @@ const loadMore = async (skip) => {
 };
 
 const onDelete = async (bookmark) => {
-  const { skipBookmarkDeleteConfirmation } = await browser.storage.local.get('skipBookmarkDeleteConfirmation');
-  if (!skipBookmarkDeleteConfirmation) {
+  if (!skipDeleteConfirmation.value) {
     if (await confirmationRef.value.request() === false) {
       return;
     }
     if (confirmationRef.value.remember) {
-      await browser.storage.local.set({ skipBookmarkDeleteConfirmation: true });
+      skipDeleteConfirmation.value = true;
     }
   }
   let removed = false;
