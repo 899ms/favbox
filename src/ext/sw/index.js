@@ -65,6 +65,8 @@ browser.bookmarks.onCreated.addListener(async (id, bookmark) => {
   let response = null;
   let activeTab = null;
 
+  const foldersMapPromise = getFoldersMap();
+
   // fetch HTML from active tab (content script)
   [activeTab] = await browser.tabs.query({ active: true });
   try {
@@ -82,7 +84,7 @@ browser.bookmarks.onCreated.addListener(async (id, bookmark) => {
     if (response === null) {
       throw new Error('No page data: response is null');
     }
-    const foldersMap = await getFoldersMap();
+    const foldersMap = await foldersMapPromise;
     const entity = await (new MetadataParser(bookmark, response, foldersMap)).getFavboxBookmark();
     if (entity.image === null && activeTab) {
       try {

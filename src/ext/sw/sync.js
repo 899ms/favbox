@@ -53,9 +53,11 @@ export const refreshAttributes = async () => {
 const sync = async () => {
   console.time('Sync time');
 
-  const browserTotal = await getBookmarksCount();
-  const idbTotal = await bookmarkStorage.total();
-  const { status } = await browser.storage.session.get('status');
+  const [browserTotal, idbTotal, { status }] = await Promise.all([
+    getBookmarksCount(),
+    bookmarkStorage.total(),
+    browser.storage.session.get('status'),
+  ]);
 
   await browser.storage.session.set({ browserTotal, idbTotal });
   console.log(`Browser: ${browserTotal}, IDB: ${idbTotal}, Status: ${status}`);
