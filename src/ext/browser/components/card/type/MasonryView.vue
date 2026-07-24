@@ -23,7 +23,6 @@
             'min-h-[80px] sm:min-h-[120px]': !bookmark.image || imageError,
             'min-h-[60px] sm:min-h-[80px]': bookmark.image && !imageError
           }"
-          :style="(!bookmark.image || imageError) ? placeholder : null"
         >
           <img
             v-if="bookmark.image && !imageError"
@@ -44,12 +43,17 @@
           </div>
           <div
             v-if="!bookmark.image || imageError"
-            class="relative flex size-full items-center justify-center overflow-hidden min-w-0"
+            class="relative flex size-full items-center justify-center overflow-hidden min-w-0 bg-gray-100 dark:bg-neutral-900"
           >
+            <BookmarkFavicon
+              :bookmark="bookmark"
+              class="pointer-events-none absolute -inset-6 scale-150 object-cover opacity-70 blur-2xl"
+              aria-hidden="true"
+            />
             <div class="relative z-0 flex flex-col items-center p-6 w-full min-w-0">
 
               <div
-                class="group relative flex aspect-square size-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/50 dark:border-white/10 bg-white/20 dark:bg-white/5 shadow-lg backdrop-blur-xl mb-4"
+                class="group relative flex aspect-square size-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/30 dark:border-white/10 bg-white/10 dark:bg-white/5 backdrop-blur-xl mb-4"
               >
                 <BookmarkFavicon
                   :bookmark="bookmark"
@@ -111,11 +115,10 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue';
+import { ref } from 'vue';
 import AppBadge from '@/components/app/AppBadge.vue';
 import AppSpinner from '@/components/app/AppSpinner.vue';
 import BookmarkFavicon from '@/ext/browser/components/BookmarkFavicon.vue';
-import useColorExtraction from '@/composables/useColorExtraction';
 import PhCalendarBlank from '~icons/ph/calendar-blank';
 
 const props = defineProps({
@@ -126,22 +129,13 @@ const props = defineProps({
 });
 
 const imageError = ref(false);
-const imageLoading = ref(true);
-const { placeholder, extract } = useColorExtraction();
-const faviconUrl = `https://icons.duckduckgo.com/ip3/${props.bookmark.domain}.ico`;
-const cacheKey = `fav_${props.bookmark.domain}`;
-const onImageError = async () => {
+const imageLoading = ref(Boolean(props.bookmark.image));
+
+const onImageError = () => {
   imageError.value = true;
   imageLoading.value = false;
-  extract(faviconUrl, cacheKey);
 };
 
-onMounted(async () => {
-  if (!props.bookmark.image) {
-    imageLoading.value = false;
-    extract(faviconUrl, cacheKey);
-  }
-});
 const gradientClasses = [
   'gradient-cyan-blue',
   'gradient-indigo-violet',
