@@ -7,7 +7,8 @@
     </div>
     <div
       ref="indicatorRef"
-      class="absolute left-1/2 -translate-x-1/2 size-10 rounded-md bg-gray-400/20 transition-all duration-500 dark:bg-neutral-800 pointer-events-none z-10"
+      class="absolute left-1/2 size-10 rounded-md bg-gray-400/20 transition-transform duration-500 dark:bg-neutral-800 pointer-events-none z-10"
+      :style="{ transform: `translate(-50%, ${indicatorTop}px)` }"
     />
     <ul class="flex-1 flex flex-col items-center justify-center gap-y-8 overflow-auto py-4 min-h-[60px] max-h-full relative z-10">
       <li
@@ -21,8 +22,6 @@
           :to="{ name: item.name }"
           class="relative"
           tabindex="0"
-          @click="handleClick"
-          @keydown.enter="handleClick"
         >
           <component
             :is="item.icon"
@@ -48,7 +47,7 @@
 </template>
 <script setup>
 import {
-  defineProps, ref, onMounted, onBeforeUnmount, reactive, watch,
+  defineProps, ref, onMounted, onBeforeUnmount, reactive, watch, nextTick,
 } from 'vue';
 import { useRoute } from 'vue-router';
 
@@ -65,40 +64,34 @@ defineProps({
 
 const route = useRoute();
 const indicatorRef = ref(null);
+const indicatorTop = ref(0);
 const menuItemsRef = reactive({});
 
 const setMenuItemRef = (el, name) => {
   menuItemsRef[name] = el;
 };
 
-const setIndicatorPosition = (element) => {
+const updateIndicatorPosition = () => {
+  const element = menuItemsRef[route.name];
+  const container = indicatorRef.value?.parentElement;
+  if (!element || !container) return;
+  const containerRect = container.getBoundingClientRect();
   const targetRect = element.getBoundingClientRect();
-  const center = targetRect.top + targetRect.height / 2;
-  indicatorRef.value.style.top = `${center - (indicatorRef.value.offsetHeight / 2)}px`;
-};
-
-const moveButton = () => {
-  const currentItem = menuItemsRef[route.name];
-  if (currentItem) {
-    setIndicatorPosition(currentItem);
-  }
-};
-
-const handleClick = (event) => {
-  const targetElement = event.currentTarget;
-  setIndicatorPosition(targetElement);
+  const center = (targetRect.top - containerRect.top) + targetRect.height / 2;
+  indicatorTop.value = center - (indicatorRef.value.offsetHeight / 2);
 };
 
 onMounted(() => {
-  window.addEventListener('resize', moveButton);
+  window.addEventListener('resize', updateIndicatorPosition);
 });
 
 onBeforeUnmount(() => {
-  window.removeEventListener('resize', moveButton);
+  window.removeEventListener('resize', updateIndicatorPosition);
 });
 
-watch(() => route.name, () => {
-  moveButton();
+watch(() => route.name, async () => {
+  await nextTick();
+  updateIndicatorPosition();
 }, { immediate: true });
 </script>
 <style scoped>
