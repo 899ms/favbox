@@ -1,5 +1,4 @@
 import useConnection from './idb/connection';
-import pageBookmarksByDate from './idb/pager';
 import escapeRegExp from './regex';
 
 const buildTermRegex = (term) => {
@@ -7,49 +6,50 @@ const buildTermRegex = (term) => {
   return new RegExp(`^${regexPattern}.*$`, 'i');
 };
 
-const buildBookmarkMatcher = (query) => {
+const buildBookmarkWhere = (query) => {
   const queryParams = {};
   query.forEach(({ key, value }) => {
     (queryParams[key] ??= []).push(value);
   });
 
-  const checks = [];
-  if (queryParams.folder) {
-    const folders = new Set(queryParams.folder);
-    checks.push((row) => folders.has(row.folderId));
-  }
-  if (queryParams.tag) {
-    const tags = new Set(queryParams.tag);
-    checks.push((row) => (row.tags ?? []).some((tag) => tags.has(tag)));
-  }
-  if (queryParams.domain) {
-    const domains = new Set(queryParams.domain);
-    checks.push((row) => domains.has(row.domain));
-  }
-  if (queryParams.keyword) {
-    const keywords = new Set(queryParams.keyword);
-    checks.push((row) => (row.keywords ?? []).some((keyword) => keywords.has(keyword)));
-  }
-  if (queryParams.id) {
-    const ids = new Set(queryParams.id);
-    checks.push((row) => ids.has(row.id));
-  }
+  const whereConditions = [];
+  const conditions = [
+    { key: 'folder', condition: { folderId: { in: queryParams.folder } } },
+    { key: 'tag', condition: { tags: { in: queryParams.tag } } },
+    { key: 'domain', condition: { domain: { in: queryParams.domain } } },
+    { key: 'keyword', condition: { keywords: { in: queryParams.keyword } } },
+    { key: 'id', condition: { id: { in: queryParams.id } } },
+  ];
+  conditions.forEach(({ key, condition }) => {
+    if (queryParams[key]) {
+      whereConditions.push(condition);
+    }
+  });
   if (queryParams.term) {
     const regex = buildTermRegex(queryParams.term[0]);
-    checks.push((row) => regex.test(row.title)
-      || regex.test(row.description ?? '')
-      || regex.test(row.url)
-      || regex.test(row.domain)
-      || (row.keywords ?? []).some((keyword) => regex.test(keyword)));
+    whereConditions.push({
+      title: { regex },
+      or: {
+        description: { regex },
+        or: {
+          url: { regex },
+          or: {
+            domain: { regex },
+            or: {
+              keywords: { regex },
+            },
+          },
+        },
+      },
+    });
   }
   if (queryParams.dateAdded?.[0]) {
     const [startStr, endStr] = queryParams.dateAdded[0].split('~');
     const low = new Date(startStr).setHours(0, 0, 0, 0);
     const high = new Date(endStr).setHours(23, 59, 59, 999);
-    checks.push((row) => row.dateAdded >= low && row.dateAdded <= high);
+    whereConditions.push({ dateAdded: { '-': { low, high } } });
   }
-  if (checks.length === 0) return null;
-  return (row) => checks.every((check) => check(row));
+  return whereConditions.length === 0 ? null : whereConditions;
 };
 
 const buildPinnedWhere = (term) => {
@@ -128,13 +128,15 @@ export default class BookmarkStorage {
     return connection.select(query);
   }
 
-  async searchAfter(query, cursor, limit = 50, sortDirection = 'desc') {
-    await useConnection();
-    return pageBookmarksByDate({
-      cursor,
+  async search(query, skip = 0, limit = 50, sortDirection = 'desc') {
+    const connection = await useConnection();
+    return connection.select({
+      from: 'bookmarks',
+      distinct: true,
       limit,
-      sortDirection,
-      match: buildBookmarkMatcher(query),
+      skip,
+      order: { by: 'dateAdded', type: sortDirection },
+      where: buildBookmarkWhere(query),
     });
   }
 

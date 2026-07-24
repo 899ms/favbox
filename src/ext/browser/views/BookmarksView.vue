@@ -55,7 +55,7 @@
     <AppInfiniteScroll
       ref="scroll"
       class="flex h-screen w-full flex-col overflow-y-auto"
-      @scroll:end="loadMore"
+      @scroll:end="() => loadMore(bookmarksList.length)"
     >
       <div class="sticky top-0 z-10 flex w-full flex-row flex-wrap items-center gap-2 bg-white/70 pb-3 pt-2 px-2 backdrop-blur-sm sm:gap-x-3 dark:bg-black/70">
         <SearchTerm
@@ -189,6 +189,7 @@ import AppConfirmation from '@/components/app/AppConfirmation.vue';
 import BookmarkForm from '@/ext/browser/components/BookmarkForm.vue';
 import SortDirection from '@/ext/browser/components/SortDirection.vue';
 import DatePicker from '@/ext/browser/components/DatePicker.vue';
+import { skipDeleteConfirmation } from '@/composables/useAppSettings';
 
 const bookmarkStorage = new BookmarkStorage();
 const attributeStorage = new AttributeStorage();
@@ -231,7 +232,7 @@ const bookmarksTotalPlaceholder = computed(() => (bookmarksQuery.value.length ? 
 const load = async () => {
   try {
     loading.value = true;
-    bookmarksList.value = await bookmarkStorage.searchAfter(bookmarksQuery.value, null, PAGINATION_LIMIT, bookmarksSort.value);
+    bookmarksList.value = await bookmarkStorage.search(bookmarksQuery.value, 0, PAGINATION_LIMIT, bookmarksSort.value);
   } catch (e) {
     console.error(e);
     notify({ group: 'error', text: 'Error loading bookmarks.' }, NOTIFICATION_DURATION);
@@ -241,12 +242,11 @@ const load = async () => {
 };
 
 let loadingMore = false;
-const loadMore = async () => {
+const loadMore = async (skip) => {
   if (loadingMore) return;
   loadingMore = true;
   try {
-    const cursor = bookmarksList.value.at(-1) ?? null;
-    const more = await bookmarkStorage.searchAfter(bookmarksQuery.value, cursor, PAGINATION_LIMIT, bookmarksSort.value);
+    const more = await bookmarkStorage.search(bookmarksQuery.value, skip, PAGINATION_LIMIT, bookmarksSort.value);
     bookmarksList.value.push(...more);
   } catch (e) {
     console.error(e);
@@ -262,7 +262,7 @@ const refresh = async () => {
       attributeStorage.search(attributesIncludes, ...attributesSort.value.split(':'), attributesTerm.value, 0, PAGINATION_LIMIT),
       getFolderTree(),
       bookmarkStorage.total(),
-      bookmarkStorage.searchAfter(bookmarksQuery.value, null, Math.max(PAGINATION_LIMIT, bookmarksList.value.length), bookmarksSort.value),
+      bookmarkStorage.search(bookmarksQuery.value, 0, Math.max(PAGINATION_LIMIT, bookmarksList.value.length), bookmarksSort.value),
     ]);
     attributesList.value = attrs;
     folderTree.value = folders;
@@ -313,13 +313,12 @@ const loadAttributes = useDebounceFn(async ({ skip = 0, limit = PAGINATION_LIMIT
 }, 100);
 
 const handleRemove = async (bookmark) => {
-  const { skipBookmarkDeleteConfirmation } = await browser.storage.local.get('skipBookmarkDeleteConfirmation');
-  if (!skipBookmarkDeleteConfirmation) {
+  if (!skipDeleteConfirmation.value) {
     if (await deleteConfirmationRef.value.request() === false) {
       return;
     }
     if (deleteConfirmationRef.value.remember) {
-      await browser.storage.local.set({ skipBookmarkDeleteConfirmation: true });
+      skipDeleteConfirmation.value = true;
     }
   }
   let removed = false;
@@ -338,9 +337,10 @@ const handleRemove = async (bookmark) => {
   if (!removed) return;
 
   try {
-    const cursor = bookmarksList.value.at(-1) ?? null;
-    const [next] = await bookmarkStorage.searchAfter(bookmarksQuery.value, cursor, 1, bookmarksSort.value);
-    if (next && next.id !== bookmark.id) bookmarksList.value.push(next);
+    if (bookmarksList.value.length < PAGINATION_LIMIT) {
+      const more = await bookmarkStorage.search(bookmarksQuery.value, bookmarksList.value.length, 1, bookmarksSort.value);
+      if (more.length) bookmarksList.value.push(...more);
+    }
   } catch (e) {
     console.error('Error loading additional bookmarks after removal:', e);
   }
